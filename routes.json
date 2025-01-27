@@ -1,9 +1,4 @@
 {
-  "cors": {
-    "enabled": true,
-    "origin": "*",
-    "methods": ["GET", "POST", "PUT", "DELETE"]
-  },
   "routes": [
     {
       "method": "GET",
@@ -14,7 +9,9 @@
       "rateLimit": {
         "max": 50,
         "timeWindow": "1 minute"
-      }
+      },
+      "preInterceptors": ["./interceptors/logRequest.js"],
+      "postInterceptors": ["./interceptors/logResponse.js"]
     },
     {
       "method": "POST",
@@ -24,9 +21,10 @@
       },
       "rateLimit": {
         "max": 20,
-        "timeWindow": "1 minute"
+        "timeWindow": "30 seconds"
       },
-      "cors": false
+      "preInterceptors": ["./interceptors/validatePayload.js"],
+      "postInterceptors": []
     }
   ]
 }

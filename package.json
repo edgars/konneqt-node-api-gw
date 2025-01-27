@@ -14,6 +14,7 @@
     "@fastify/rate-limit": "^7.0.0",
     "chalk": "^5.4.1",
     "fastify": "^4.0.0",
+    "node-fetch": "^3.3.2",
     "ora": "^8.1.1"
   },
   "devDependencies": {
