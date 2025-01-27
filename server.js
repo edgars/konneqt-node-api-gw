@@ -6,6 +6,8 @@ const httpProxy = require('@fastify/http-proxy');
 const rateLimit = require('@fastify/rate-limit');
 const cors = require('@fastify/cors'); // Plugin de CORS
 
+
+
 // Middleware de segurança com Helmet
 fastify.register(helmet);
 
@@ -66,14 +68,79 @@ async function loadRoutes() {
   }
 }
 
+// Function to load routes and generate Postman collection
+async function loadRoutesAndGeneratePostman() {
+  try {
+    // Load routes.json
+    const routesPath = path.join(__dirname, 'routes.json');
+    const config = JSON.parse(fs.readFileSync(routesPath, 'utf8'));
+
+    // Initialize Postman collection structure
+    const postmanCollection = {
+      info: {
+        name: 'API Gateway Postman Collection',
+        description: 'Collection of API routes from routes.json',
+        schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
+      },
+      item: [],
+    };
+
+    for (const route of config.routes) {
+      // Add route to Fastify
+      fastify.route({
+        method: route.method,
+        url: route.url,
+        handler: async (req, reply) => {
+          reply.send({ message: `This is a proxy route for ${route.proxy.target}` });
+        },
+      });
+
+      // Add route to Postman collection
+      const urlParts = route.url.split('/').filter((part) => part); // Remove empty segments
+      postmanCollection.item.push({
+        name: `Route: ${route.url}`,
+        request: {
+          method: route.method,
+          header: [],
+          url: {
+            raw: `http://localhost:3000${route.url}`,
+            protocol: 'http',
+            host: ['localhost:3000'],
+            path: urlParts,
+          },
+        },
+      });
+
+      fastify.log.info(`Route configured: ${route.method} ${route.url} -> ${route.proxy.target}`);
+    }
+
+    // Write the Postman collection to a file
+    const postmanFilePath = path.join(__dirname, 'postman_collection.json');
+    fs.writeFileSync(postmanFilePath, JSON.stringify(postmanCollection, null, 2));
+    fastify.log.info(`Postman collection saved to ${postmanFilePath}`);
+
+    // Expose the Postman collection via an API endpoint
+    fastify.get('/postman-collection', async (req, reply) => {
+      const collectionContent = fs.readFileSync(postmanFilePath, 'utf8');
+      reply
+        .header('Content-Type', 'application/json')
+        .send(JSON.parse(collectionContent));
+    });
+  } catch (err) {
+    fastify.log.error(`Error loading routes: ${err.message}`);
+    process.exit(1);
+  }
+}
+
 // Inicializa o servidor
 async function startServer() {
+  const asciiArt = fs.readFileSync(path.join(__dirname, 'logo.txt'), 'utf8');
   try {
     // Carrega rotas do arquivo JSON
     await loadRoutes();
-
     // Inicia o servidor
     await fastify.listen({ port: 3000, host: '0.0.0.0' });
+    console.log(asciiArt);
     fastify.log.info(`Servidor rodando em http://localhost:3000`);
   } catch (err) {
     fastify.log.error(err);
