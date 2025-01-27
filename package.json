@@ -1,0 +1,22 @@
+{
+  "name": "fastify-api-gateway",
+  "version": "1.0.0",
+  "description": "Um API Gateway simples usando Fastify com Rate Limit por rota, Proxy para APIs externas e suporte a CORS",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "@fastify/helmet": "^9.0.0",
+    "@fastify/rate-limit": "^7.0.0",
+    "@fastify/http-proxy": "^8.0.0",
+    "@fastify/cors": "^8.0.0",
+    "fastify": "^4.0.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.0"
+  },
+  "author": "Seu Nome",
+  "license": "MIT"
+}
