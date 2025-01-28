@@ -1,0 +1,24 @@
+{
+    "version": 2,
+    "builds": [
+      {
+        "src": "server.js",
+        "use": "@vercel/node"  // Specify serverless Node.js function
+      },
+      {
+        "src": "public/**",
+        "use": "@vercel/static" // Serve static files from the public/ directory
+      }
+    ],
+    "routes": [
+      {
+        "src": "/api/(.*)",
+        "dest": "server.js"  // Route API calls to server.js
+      },
+      {
+        "src": "/(.*)",
+        "dest": "/public/$1" // Route everything else to static files in public/
+      }
+    ]
+  }
+  
