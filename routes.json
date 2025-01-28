@@ -1,4 +1,4 @@
-{
+{ 
   "routes": [
     {
       "method": "GET",
@@ -7,14 +7,15 @@
         "target": "https://jsonplaceholder.typicode.com/users"
       },
       "rateLimit": {
-        "max": 50,
+        "max": 10,
         "timeWindow": "1 minute"
       },
       "preInterceptors": ["./interceptors/logRequest.js"],
-      "postInterceptors": ["./interceptors/logResponse.js"]
+      "postInterceptors": ["./interceptors/logResponse.js"],
+      "protected": true
     },
     {
-      "method": "POST",
+      "method": "GET",
       "url": "/api/posts",
       "proxy": {
         "target": "https://jsonplaceholder.typicode.com/posts"
@@ -24,7 +25,8 @@
         "timeWindow": "30 seconds"
       },
       "preInterceptors": ["./interceptors/validatePayload.js"],
-      "postInterceptors": []
+      "postInterceptors": [],
+      "protected": false
     }
   ]
 }
