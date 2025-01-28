@@ -12,6 +12,7 @@
     "@fastify/helmet": "^9.0.0",
     "@fastify/http-proxy": "^8.0.0",
     "@fastify/rate-limit": "^7.0.0",
+    "@fastify/static": "^7.0.4",
     "chalk": "^5.4.1",
     "fastify": "^4.0.0",
     "node-fetch": "^3.3.2",

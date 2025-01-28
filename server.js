@@ -7,6 +7,17 @@ const rateLimit = require('@fastify/rate-limit');
 const httpProxy = require('@fastify/http-proxy');
 const cors = require('@fastify/cors');
 
+// Register the @fastify/static plugin to serve static files
+fastify.register(require('@fastify/static'), {
+  root: path.join(__dirname, 'public'), // Serve files from the "public" folder
+  prefix: '/ui', // Mount the UI on the "/ui" path
+});
+
+// Serve the CRUD UI on "/ui"
+fastify.get('/ui', async (request, reply) => {
+  return reply.sendFile('index.html'); // Serve the HTML file
+});
+
 // Utility to dynamically load interceptors
 function loadInterceptor(interceptorPath) {
   try {

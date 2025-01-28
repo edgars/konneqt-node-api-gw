@@ -183,10 +183,3 @@ Inicia o servidor em modo de desenvolvimento com **hot-reload** usando o `nodemo
 
 ----------
 
-## Contribuição
-
-Contribuições são bem-vindas! Por favor, envie um **pull request** ou abra uma **issue** para melhorias, bugs ou novas funcionalidades.
-
-----------
-
-Agora o `README.md` está completo e atualizado com a nova funcionalidade de configuração global de CORS e a licença **Apache License 2.0**. 🚀
