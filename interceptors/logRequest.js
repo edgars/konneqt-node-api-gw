@@ -1,4 +1,6 @@
-module.exports = async (fastify, req, reply) => {
-    fastify.log.info(`🟢🟢🟢🟢 ➡️➡️➡️➡️➡️➡️➡️[PRE] Requisição recebida: ${req.method} ${req.url}`);
-  };
-  
+module.exports = async (request, reply) => {
+  console.log(`[Request] ${request.method} ${request.url}`, {
+    headers: request.headers,
+    body: request.body,
+  });
+};

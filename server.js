@@ -1,117 +1,151 @@
-const fastify = require('fastify')({ logger: true });
 const fs = require('fs');
 const path = require('path');
-const helmet = require('@fastify/helmet');
-const httpProxy = require('@fastify/http-proxy');
-const rateLimit = require('@fastify/rate-limit');
-const cors = require('@fastify/cors'); // Plugin de CORS
-
-// Middleware de segurança com Helmet
-fastify.register(helmet);
-
-// Function to load and execute interceptors
-async function loadInterceptors(interceptors, fastify, req, reply) {
-  for (const interceptorPath of interceptors) {
-    try {
-      // Dynamically load the interceptor file
-      const interceptor = require(path.join(__dirname, interceptorPath));
-      fastify.log.info(`Executing interceptor: ${interceptorPath}`);
-      // Execute the interceptor as a function
-      await interceptor(fastify, req, reply);
-    } catch (err) {
-      fastify.log.error(`Error executing interceptor ${interceptorPath}: ${err.message}`);
-      throw err; // Stop processing if an interceptor fails
-    }
-  }
-}
-
-// Function to load routes from routes.json and configure them
-async function loadRoutes() {
-  try {
-    const routesPath = path.join(__dirname, 'routes.json');
-    const config = JSON.parse(fs.readFileSync(routesPath, 'utf8'));
-
-    // Configure global CORS
-    if (config.cors && config.cors.enabled) {
-      fastify.register(cors, {
-        origin: config.cors.origin || '*',
-        methods: config.cors.methods || ['GET', 'POST', 'PUT', 'DELETE'],
-      });
-      fastify.log.info('Global CORS enabled');
-    }
-
-    // Configure individual routes
-    for (const route of config.routes) {
-      // Configure rate limiting
-      if (route.rateLimit) {
-        fastify.register(rateLimit, {
-          max: route.rateLimit.max,
-          timeWindow: route.rateLimit.timeWindow,
-          keyGenerator: (req) => req.ip,
-          onExceeding: (req) =>
-            fastify.log.warn(`User ${req.ip} nearing rate limit for route ${route.url}`),
-          onExceeded: (req) =>
-            fastify.log.warn(`User ${req.ip} exceeded rate limit for route ${route.url}`),
-        });
-      }
-
-      if (route.proxy && route.proxy.target) {
-        // Register proxy routes with @fastify/http-proxy
-        fastify.register(httpProxy, {
-          upstream: route.proxy.target,
-          prefix: route.url,
-          rewritePrefix: '', // Remove prefix when forwarding to the target
-          http2: false,
-        });
-        fastify.log.info(`Proxy configured: ${route.method} ${route.url} -> ${route.proxy.target}`);
-      } else {
-        // Configure non-proxy routes
-        fastify.route({
-          method: route.method,
-          url: route.url,
-          preHandler: async (req, reply) => {
-            // Execute pre-interceptors
-            if (route.preInterceptors && route.preInterceptors.length > 0) {
-              await loadInterceptors(route.preInterceptors, fastify, req, reply);
-            }
-          },
-          handler: async (req, reply) => {
-            // Handle non-proxy routes
-            reply.send({ message: `Route ${route.url} executed successfully` });
-          },
-          onResponse: async (req, reply) => {
-            // Execute post-interceptors
-            if (route.postInterceptors && route.postInterceptors.length > 0) {
-              await loadInterceptors(route.postInterceptors, fastify, req, reply);
-            }
-          },
-        });
-
-        fastify.log.info(`Route configured: ${route.method} ${route.url}`);
-      }
-    }
-  } catch (err) {
-    fastify.log.error(`Error loading routes: ${err.message}`);
-    process.exit(1);
-  }
-}
-
-
-
 const asciiArt = fs.readFileSync(path.join(__dirname, 'logo.txt'), 'utf8');
-// Inicializa o servidor
+
+const fastify = require('fastify')({ logger: true });
+const rateLimit = require('@fastify/rate-limit');
+const httpProxy = require('@fastify/http-proxy');
+const cors = require('@fastify/cors');
+
+// Utility to dynamically load interceptors
+function loadInterceptor(interceptorPath) {
+  try {
+    const interceptor = require(interceptorPath);
+    if (typeof interceptor !== 'function') {
+      throw new Error(`Interceptor at ${interceptorPath} is not a valid function.`);
+    }
+    return interceptor;
+  } catch (error) {
+    fastify.log.error(`Failed to load interceptor: ${error.message}`);
+    return null;
+  }
+}
+
+// Load routes.json configuration
+async function loadRoutesConfig() {
+  const routesPath = path.join(__dirname, 'routes.json');
+  try {
+    const data = await fs.promises.readFile(routesPath, 'utf-8');
+    const routes = JSON.parse(data);
+    return routes;
+  } catch (error) {
+    fastify.log.error(`Failed to load routes.json: ${error.message}`);
+    process.exit(1); // Exit if routes.json is missing or invalid
+  }
+}
+
+// Register routes dynamically with proxy support, preInterceptors, and postInterceptors
+async function registerRoutes() {
+  const routes = await loadRoutesConfig();
+
+  // Check if `routes` is an array
+  if (!Array.isArray(routes)) {
+    throw new Error('Invalid routes.json format: Expected an array of routes.');
+  }
+
+  routes.forEach((route) => {
+    const {
+      method,
+      url,
+      proxy,
+      preInterceptors = [],
+      postInterceptors = [],
+      rateLimit: customRateLimit,
+    } = route;
+
+    if (!proxy || !proxy.target) {
+      fastify.log.error(`Route ${url} is missing a valid proxy target.`);
+      return;
+    }
+
+    // Load preInterceptors
+    const preInterceptorFunctions = preInterceptors.map((interceptorPath) => {
+      const interceptorFullPath = path.join(__dirname, interceptorPath);
+      return loadInterceptor(interceptorFullPath);
+    }).filter(Boolean); // Filter out invalid interceptors
+
+    // Load postInterceptors
+    const postInterceptorFunctions = postInterceptors.map((interceptorPath) => {
+      const interceptorFullPath = path.join(__dirname, interceptorPath);
+      return loadInterceptor(interceptorFullPath);
+    }).filter(Boolean); // Filter out invalid interceptors
+
+    // Register a proxy route with pre and post interceptors
+    fastify.register(httpProxy, {
+      upstream: proxy.target, // The upstream service
+      prefix: url, // The exposed path
+      http2: false, // Disable HTTP/2
+      replyOptions: {
+        onResponse: async (request, reply, resStream) => {
+          // Execute postInterceptors after the proxy response
+          reply.header('x-powered-by', 'Konneqt Micro API Gateway - Version Beta 0.1');
+          for (const interceptor of postInterceptorFunctions) {
+            await interceptor(request, reply);
+          }
+          reply.send(resStream); // Send the proxied response back
+        },
+      },
+    });
+
+    // Apply preInterceptors via an onRequest hook
+    fastify.addHook('onRequest', async (request, reply) => {
+      if (request.url.startsWith(url)) {
+        for (const interceptor of preInterceptorFunctions) {
+          await interceptor(request, reply); // Execute each pre-interceptor
+        }
+      }
+    });
+
+    // Apply rate limiting per route (if defined)
+    if (customRateLimit) {
+      fastify.addHook('onRequest', async (request, reply) => {
+        if (request.url.startsWith(url)) {
+          await fastify.rateLimit({
+            max: customRateLimit.max || 10,
+            timeWindow: customRateLimit.timeWindow || '1 minute',
+          });
+        }
+      });
+    }
+
+    fastify.log.info(`Registered route ${method.toUpperCase()} ${url} -> ${proxy.target}`);
+  });
+}
+
+// Register global plugins
+async function setupCors() {
+  await fastify.register(cors, {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
+}
+
+async function setupRateLimit() {
+  await fastify.register(rateLimit, {
+    global: true,
+    max: 100, // Default max requests
+    timeWindow: '1 minute', // Default time window
+    keyGenerator: (request) => request.headers['x-real-ip'] || request.ip,
+  });
+}
+
+// Main server initialization
 async function startServer() {
   try {
-    // Carrega rotas do arquivo JSON
-    await loadRoutes();
+    await setupCors();
+    await setupRateLimit();
+    await registerRoutes();
 
-    // Inicia o servidor
-    await fastify.listen({ port: 3000, host: '0.0.0.0' });
+    const PORT = process.env.PORT || 3000;
+    await fastify.listen({ port: PORT, host: '0.0.0.0' });
     console.log(asciiArt)
-  } catch (err) {
-    fastify.log.error(err);
+  } catch (error) {
+    fastify.log.error(`Error starting server: ${error.message}`);
     process.exit(1);
   }
 }
 
+// Start the server
 startServer();

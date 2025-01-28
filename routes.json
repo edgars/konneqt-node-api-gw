@@ -1,32 +1,30 @@
-{ 
-  "routes": [
-    {
-      "method": "GET",
-      "url": "/api/users",
-      "proxy": {
-        "target": "https://jsonplaceholder.typicode.com/users"
-      },
-      "rateLimit": {
-        "max": 10,
-        "timeWindow": "1 minute"
-      },
-      "preInterceptors": ["./interceptors/logRequest.js"],
-      "postInterceptors": ["./interceptors/logResponse.js"],
-      "protected": true
+[
+  {
+    "method": "GET",
+    "url": "/api/users",
+    "proxy": {
+      "target": "https://jsonplaceholder.typicode.com/users"
     },
-    {
-      "method": "GET",
-      "url": "/api/posts",
-      "proxy": {
-        "target": "https://jsonplaceholder.typicode.com/posts"
-      },
-      "rateLimit": {
-        "max": 20,
-        "timeWindow": "30 seconds"
-      },
-      "preInterceptors": ["./interceptors/validatePayload.js"],
-      "postInterceptors": [],
-      "protected": false
+    "preInterceptors": [
+      "interceptors/logRequest.js"
+    ],
+    "postInterceptors": [
+      "interceptors/logResponse.js"
+    ],
+    "rateLimit": {
+      "max": 50,
+      "timeWindow": "1 minute"
     }
-  ]
-}
+  },
+  {
+    "method": "GET",
+    "url": "/api/posts",
+    "proxy": {
+      "target": "https://jsonplaceholder.typicode.com/posts"
+    },
+    "preInterceptors": [
+      "interceptors/authInterceptor.js"
+    ],
+    "postInterceptors": []
+  }
+]
