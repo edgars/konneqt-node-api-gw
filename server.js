@@ -145,13 +145,14 @@ async function setupRateLimit() {
 // Main server initialization
 async function startServer() {
   try {
+    console.log(asciiArt)
     await setupCors();
     await setupRateLimit();
     await registerRoutes();
 
     const PORT = process.env.PORT || 3000;
     await fastify.listen({ port: PORT, host: '0.0.0.0' });
-    console.log(asciiArt)
+    
   } catch (error) {
     fastify.log.error(`Error starting server: ${error.message}`);
     process.exit(1);

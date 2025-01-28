@@ -7,7 +7,12 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
    <!-- Prism.js CSS for Syntax Highlighting -->
-   <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+  <!-- Prism.js CSS for Syntax Highlighting (Dark Theme: Okaidia) -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-okaidia.min.css" rel="stylesheet">
+  
+  <!-- Prism.js Line Numbers Plugin CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" rel="stylesheet">
+  
 
   <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&family=MuseoModerno:ital,wght@0,100..900;1,100..900&display=swap');    
@@ -23,13 +28,40 @@
       .line-numbers .line-numbers-rows {
       border-right: 1px solid #444444; /* Line numbers border */
     }
+    .navbar {
+      background-color: #1e1e1e;
+      border-bottom: 1px solid #444444;
+    }
+    .navbar-brand {
+      color: #ffffff;
+      font-size: 1.5rem;
+      font-weight: bold;
+    }
+    .navbar-brand:hover {
+      color: #f1f1f1;
+    }
+    .navbar img {
+      height: 40px;
+      margin-right: 10px;
+    }
+    .line-numbers .line-numbers-rows {
+      border-right: 1px solid #444444; /* Line numbers border */
+    }
 
     </style>
 </head>
 
 <body>
+      <!-- Top Bar with Logo -->
+  <nav class="navbar navbar-expand-lg">
+    <div class="container">
+      <a class="navbar-brand" href="#">
+        <img src="https://konneqt.io/wp-content/uploads/2024/12/cropped-White-Konneqt-1.png" alt="Logo">Micro API Gateway
+      </a>
+    </div>
+  </nav>
   <div class="container mt-5">
-    <h1 class="text-left mb-4">Konneqt Micro API Gateway</h1>
+    <h1 class="text-left mb-4"></h1>
 
     <!-- Tabs Navigation -->
     <ul class="nav nav-tabs" id="crudTabs" role="tablist">
@@ -42,6 +74,7 @@
         <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#jsonTabContent" type="button" role="tab" aria-controls="jsonTabContent" aria-selected="false">
           JSON Source
         </button>
+        
       </li>
     </ul>
 
@@ -77,11 +110,8 @@
       <div class="tab-pane fade" id="jsonTabContent" role="tabpanel" aria-labelledby="json-tab">
         <div class="mt-3">
           <h5>Updated JSON:</h5>
-          <pre class="line-numbers bg-light p-3 border rounded" style="max-height: 400px; overflow-y: auto;">
-            <code id="jsonView" class="language-json">
-              <!-- Syntax-highlighted JSON content with line numbers will go here -->
-            </code>
-          </pre>
+          <textarea id="jsonEditor" class="form-control bg-dark text-light " rows="10" style="font-family: monospace;"></textarea>
+          <button id="saveJsonBtn" class="btn btn-success mt-3">Save Changes</button>
         </div>
       </div>
     </div>
@@ -150,6 +180,7 @@
 
   <script>
 $(document).ready(function () {
+  // Initial JSON data
   let routes = [
     {
       method: "GET",
@@ -168,9 +199,12 @@ $(document).ready(function () {
     },
   ];
 
+  /**
+   * Render the table rows based on the current JSON data
+   */
   const renderTable = () => {
     const tbody = $("#routesTable tbody");
-    tbody.empty(); // Clear existing table rows
+    tbody.empty(); // Clear existing rows
 
     routes.forEach((route, index) => {
       tbody.append(`
@@ -189,30 +223,53 @@ $(document).ready(function () {
         </tr>
       `);
     });
-
-    // Update the JSON view with syntax highlighting
-    const jsonView = $("#jsonView");
-    jsonView.text(JSON.stringify(routes, null, 2)); // Update JSON text
-    Prism.highlightElement(jsonView[0]); // Highlight syntax
   };
 
+  /**
+   * Update the JSON viewer based on the current JSON data
+   */
+  const renderJsonViewer = () => {
+    const jsonEditor = $("#jsonEditor");
+    jsonEditor.val(JSON.stringify(routes, null, 2)); // Update JSON textarea
+  };
+
+  /**
+   * Reset the form in the modal
+   */
   const resetForm = () => {
-    $("#routeForm")[0].reset(); // Clear the form
-    $("#routeIndex").val(""); // Clear the hidden index field
+    $("#routeForm")[0].reset();
+    $("#routeIndex").val("");
   };
 
-  // Add Route Button (Opens Modal)
+  /**
+   * Sync changes from JSON viewer to the table
+   */
+  const syncFromJsonViewer = () => {
+    try {
+      const updatedRoutes = JSON.parse($("#jsonEditor").val()); // Parse JSON input
+      if (Array.isArray(updatedRoutes)) {
+        routes = updatedRoutes; // Update global routes
+        renderTable(); // Re-render the table
+      } else {
+        alert("Invalid JSON format! The root element must be an array.");
+      }
+    } catch (error) {
+      alert("Invalid JSON! Please fix the syntax.");
+    }
+  };
+
+  // Add Route Button
   $("#addRouteBtn").on("click", () => {
     resetForm();
     $("#routeModalLabel").text("Add Route");
     $("#routeModal").modal("show");
   });
 
-  // Save Button in the Modal
+  // Save Button in Modal
   $("#routeForm").on("submit", (e) => {
-    e.preventDefault(); // Prevent form submission
+    e.preventDefault();
 
-    const index = $("#routeIndex").val(); // Get the index (if editing)
+    const index = $("#routeIndex").val();
     const newRoute = {
       method: $("#method").val(),
       url: $("#url").val(),
@@ -234,24 +291,24 @@ $(document).ready(function () {
     };
 
     if (index) {
-      // If index exists, update the route
+      // Update route
       routes[index] = newRoute;
     } else {
-      // If index does not exist, add a new route
+      // Add new route
       routes.push(newRoute);
     }
 
-    $("#routeModal").modal("hide"); // Close the modal
-    renderTable(); // Re-render the table
+    $("#routeModal").modal("hide"); // Close modal
+    renderTable(); // Re-render table
+    renderJsonViewer(); // Sync JSON viewer
   });
 
-  // Edit Button (Event Delegation)
+  // Edit Route Button
   $(document).on("click", ".editRouteBtn", function () {
-    const index = $(this).data("index"); // Get the index of the route
+    const index = $(this).data("index");
     const route = routes[index];
 
-    // Fill the modal form with the route data
-    $("#routeIndex").val(index); // Store the index in a hidden field
+    $("#routeIndex").val(index);
     $("#method").val(route.method);
     $("#url").val(route.url);
     $("#proxyTarget").val(route.proxy.target);
@@ -263,23 +320,31 @@ $(document).ready(function () {
         : ""
     );
 
-    $("#routeModalLabel").text("Edit Route"); // Update modal title
-    $("#routeModal").modal("show"); // Show the modal
+    $("#routeModalLabel").text("Edit Route");
+    $("#routeModal").modal("show");
   });
 
-  // Delete Button (Event Delegation)
+  // Delete Route Button
   $(document).on("click", ".deleteRouteBtn", function () {
-    const index = $(this).data("index"); // Get the index of the route
+    const index = $(this).data("index");
 
     if (confirm("Are you sure you want to delete this route?")) {
-      routes.splice(index, 1); // Remove the route from the array
-      renderTable(); // Re-render the table
+      routes.splice(index, 1); // Remove the route
+      renderTable(); // Re-render table
+      renderJsonViewer(); // Sync JSON viewer
     }
+  });
+
+  // Save JSON Changes Button
+  $("#saveJsonBtn").on("click", () => {
+    syncFromJsonViewer(); // Sync changes from JSON viewer to table
   });
 
   // Initial Render
   renderTable();
+  renderJsonViewer();
 });
+
   </script>
 </body>
 </html>
