@@ -93,6 +93,7 @@ async function registerRoutes() {
           for (const interceptor of postInterceptorFunctions) {
             await interceptor(request, reply);
           }
+
           reply.send(resStream); // Send the proxied response back
         },
       },
@@ -107,14 +108,60 @@ async function registerRoutes() {
       }
     });
 
+
+    const rateLimiters = {}; // Per-route in-memory storage for rate limits
+
+async function rateLimiter(request, reply) {
+  const clientIp = request.ip;
+  const routeKey = `${request.routerPath}-${clientIp}`; // Combine route and IP for uniqueness
+  const now = Date.now();
+
+  // Initialize rate limiter data for this route and IP
+  if (!rateLimiters[routeKey]) {
+    rateLimiters[routeKey] = {
+      count: 0,
+      startTime: now,
+    };
+  }
+
+  const rateLimiterData = rateLimiters[routeKey];
+  const timeWindowMs = 60 * 1000; // 1 minute
+  const maxRequests = 10;
+
+  // Reset the counter if the time window has expired
+  if (now - rateLimiterData.startTime > timeWindowMs) {
+    rateLimiterData.startTime = now;
+    rateLimiterData.count = 0;
+  }
+
+  // Increment the request count
+  rateLimiterData.count++;
+  
+
+  if (rateLimiterData.count == maxRequests-1){
+    reply.header('x-ratelimit-executed-requests', "you are about to get blocked by rate limit");
+  } else {
+    reply.header('x-ratelimit-executed-requests', rateLimiterData.count);
+  }
+
+  // Check if the request limit has been exceeded
+  if (rateLimiterData.count > maxRequests) {
+    reply.status(429).send({ error: 'Too many requests. Please try again later.' });
+    return false;
+  }
+
+  // Allow the request to proceed
+  return true;
+}
+
     // Apply rate limiting per route (if defined)
     if (customRateLimit) {
       fastify.addHook('onRequest', async (request, reply) => {
         if (request.url.startsWith(url)) {
-          await fastify.rateLimit({
-            max: customRateLimit.max || 10,
-            timeWindow: customRateLimit.timeWindow || '1 minute',
-          });
+          const isRateLimited = await rateLimiter(request, reply);
+          if (!isRateLimited) {
+            return;
+          }
         }
       });
     }
@@ -133,10 +180,11 @@ async function setupCors() {
   });
 }
 
+// Para Rate Limiting Global, quando o limite de requisições é atingido, o servidor responde com o status 429 (Too Many Requests) e o cabeçalho Retry-After com o tempo em segundos que o cliente deve esperar antes de fazer uma nova requisição.
 async function setupRateLimit() {
   await fastify.register(rateLimit, {
     global: true,
-    max: 100, // Default max requests
+    max: 20, // Default max requests
     timeWindow: '1 minute', // Default time window
     keyGenerator: (request) => request.headers['x-real-ip'] || request.ip,
   });
@@ -147,7 +195,7 @@ async function startServer() {
   try {
     console.log(asciiArt)
     await setupCors();
-    await setupRateLimit();
+    //await setupRateLimit();
     await registerRoutes();
 
     const PORT = process.env.PORT || 3000;
