@@ -111,7 +111,7 @@ async function registerRoutes() {
 
     const rateLimiters = {}; // Per-route in-memory storage for rate limits
 
-async function rateLimiter(request, reply) {
+async function rateLimiter(request, reply, maxRequestsConfig, timeWindow) {
   const clientIp = request.ip;
   const routeKey = `${request.routerPath}-${clientIp}`; // Combine route and IP for uniqueness
   const now = Date.now();
@@ -125,8 +125,8 @@ async function rateLimiter(request, reply) {
   }
 
   const rateLimiterData = rateLimiters[routeKey];
-  const timeWindowMs = 60 * 1000; // 1 minute
-  const maxRequests = 10;
+  const timeWindowMs = timeWindow
+  const maxRequests = maxRequestsConfig
 
   // Reset the counter if the time window has expired
   if (now - rateLimiterData.startTime > timeWindowMs) {
@@ -158,7 +158,8 @@ async function rateLimiter(request, reply) {
     if (customRateLimit) {
       fastify.addHook('onRequest', async (request, reply) => {
         if (request.url.startsWith(url)) {
-          const isRateLimited = await rateLimiter(request, reply);
+          // add as constantes do rate limit do routes.json
+          const isRateLimited = await rateLimiter(request, reply, customRateLimit.max, customRateLimit.timeWindow);
           if (!isRateLimited) {
             return;
           }
